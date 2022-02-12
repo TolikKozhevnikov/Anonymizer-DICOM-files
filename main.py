@@ -5,7 +5,7 @@ import uuid
 import csv
 
 data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate', 'StudyDate', 'StudyTime', 'InstitutionName']]
-dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'PatientAge', 'PatientSex']]
+dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages', 'Manufacturer', 'PatientAge', 'PatientSex']]
 
 
 def generateCode():
@@ -16,7 +16,6 @@ def Anonymization(pathToFileForAnon, PatientCode):
     PatientData = []
     try:
         ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
-
     except pydicom.errors.InvalidDicomError:  # Удаляем файл, если прочитать его не удалось.
         os.remove(pathToFileForAnon)
         print("Неизвестный файл был удален")
@@ -49,17 +48,29 @@ def Anonymization(pathToFileForAnon, PatientCode):
     return PatientData
 
 
-def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions):
+def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions):
+
     dataForProgrammers = []
+    rowAndColumns = []
+
     try:
         ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
         try:
+
+            Rows = ds.Rows
+            Columns = ds.Columns
+            rowAndColumns.append(Rows)
+            rowAndColumns.append(Columns)
+
             if ds.SeriesDescription not in SeriesDescriptions:
                 if ds.SeriesDescription != '':
                     SeriesDescriptions.append(ds.SeriesDescription)
+                    resolutions.append(rowAndColumns)
                 else:
                     if 'UnnamedSeries' not in SeriesDescriptions:
                         SeriesDescriptions.append('UnnamedSeries')
+                        resolutions.append(rowAndColumns)
+
         except AttributeError:
             # print("нет атрибута SeriesDescription")
             return
@@ -72,6 +83,11 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions)
     try:
         dataForProgrammers.append(PatientCode)
         dataForProgrammers.append(SeriesDescriptions)
+
+        dataForProgrammers.append(resolutions)
+
+        dataForProgrammers.append(ds.Manufacturer)
+
         age = str(ds.PatientAge)
         if age[0] != '0':
             dataForProgrammers.append(str(age[0:-1]))
@@ -114,13 +130,14 @@ for pathToPatientDir in PatientsDirs:
     code = generateCode()  # генерация уникального кода для пациента
     shutil.copytree(path + '\\' + pathToPatientDir, outputPath + '\\' + code)  # Копируем файлы пациента в другую папку
     SeriesDescriptions = []
+    resolutions = []  # Разрешение снимков
     for dirs, folders, files in os.walk(outputPath + '\\' + code):  # Проход по всем каталогам и файлам
         # print(dirs)
         # print(folders)
         # print(files)
         if files:
             for file in files:
-                dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions)
+                dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions, resolutions)
                 PersonalData = Anonymization(dirs + '\\' + file, code)
 
     # Проход по всем каталогам и файлам рекурсивно, для замены имён папок
