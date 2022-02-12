@@ -50,13 +50,16 @@ def Anonymization(pathToFileForAnon, PatientCode):
 
 
 def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions):
-
     dataForProgrammers = []
     try:
         ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
         try:
             if ds.SeriesDescription not in SeriesDescriptions:
-                SeriesDescriptions.append(ds.SeriesDescription)
+                if ds.SeriesDescription != '':
+                    SeriesDescriptions.append(ds.SeriesDescription)
+                else:
+                    if 'UnnamedSeries' not in SeriesDescriptions:
+                        SeriesDescriptions.append('UnnamedSeries')
         except AttributeError:
             # print("нет атрибута SeriesDescription")
             return
@@ -69,8 +72,16 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions)
     try:
         dataForProgrammers.append(PatientCode)
         dataForProgrammers.append(SeriesDescriptions)
-        dataForProgrammers.append(ds.PatientAge)
-        dataForProgrammers.append(ds.PatientSex)
+        age = str(ds.PatientAge)
+        if age[0] != '0':
+            dataForProgrammers.append(str(age[0:-1]))
+        else:
+            dataForProgrammers.append(str(age[1:-1]))
+
+        if ds.PatientSex == 'F':
+            dataForProgrammers.append('0')
+        elif ds.PatientSex == 'M':
+            dataForProgrammers.append('1')
 
     except AttributeError:
         return
@@ -124,12 +135,12 @@ for pathToPatientDir in PatientsDirs:
     counter += 1
     print('Обработано ' + str(counter) + ' из ' + str(len(PatientsDirs)))
 
-with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:    # Записываем данные пользователей в csv-файл
+with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:  # Записываем данные пользователей в csv-файл
 
     writer = csv.writer(csvfile)
     writer.writerows(data)
 
-with open('dataForProgrammers.csv', 'w', newline='') as csvfile2:   # Данные пользователей для разработчиков
+with open('dataForProgrammers.csv', 'w', newline='') as csvfile2:  # Данные пользователей для разработчиков
     writer = csv.writer(csvfile2)
     writer.writerows(dataWithNotPersonalPatientInfo)
 
