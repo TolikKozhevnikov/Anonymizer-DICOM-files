@@ -5,7 +5,9 @@ import uuid
 import csv
 
 data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate', 'StudyDate', 'StudyTime', 'InstitutionName']]
-dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages', 'Manufacturer', 'PatientAge', 'PatientSex']]
+dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages',
+                                   'RescaleIntercept', 'RescaleSlope', 'ImagePositionPatient', 'SliceThickness',
+                                   'PixelSpacing', 'Manufacturer', 'DeviceSerialNumber', 'PatientAge', 'PatientSex']]
 
 
 def generateCode():
@@ -16,6 +18,7 @@ def Anonymization(pathToFileForAnon, PatientCode):
     PatientData = []
     try:
         ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
+        # print(ds)
     except pydicom.errors.InvalidDicomError:  # Удаляем файл, если прочитать его не удалось.
         os.remove(pathToFileForAnon)
         print("Неизвестный файл был удален")
@@ -48,7 +51,30 @@ def Anonymization(pathToFileForAnon, PatientCode):
     return PatientData
 
 
-def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions):
+def returnImagePositionsPatient(ds):
+    try:
+        return str(ds.ImagePositionPatient)
+
+    except AttributeError:
+        return 'None'
+
+
+def returnSliceThickness(ds):
+    try:
+        return str(ds.SliceThickness)
+    except AttributeError:
+        return 'None'
+
+
+def returnPixelSpacing(ds):
+    try:
+        return str(ds.PixelSpacing)
+    except AttributeError:
+        return 'None'
+
+
+def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions, ImagePositionsPatient,
+                             SliceThickness, PixelSpacing):
 
     dataForProgrammers = []
     rowAndColumns = []
@@ -66,10 +92,16 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
                 if ds.SeriesDescription != '':
                     SeriesDescriptions.append(ds.SeriesDescription)
                     resolutions.append(rowAndColumns)
+                    ImagePositionsPatient.append(returnImagePositionsPatient(ds))
+                    SliceThickness.append(returnSliceThickness(ds))
+                    PixelSpacing.append(returnPixelSpacing(ds))
                 else:
                     if 'UnnamedSeries' not in SeriesDescriptions:
                         SeriesDescriptions.append('UnnamedSeries')
                         resolutions.append(rowAndColumns)
+                        ImagePositionsPatient.append(returnImagePositionsPatient(ds))
+                        SliceThickness.append(returnSliceThickness(ds))
+                        PixelSpacing.append(returnPixelSpacing(ds))
 
         except AttributeError:
             # print("нет атрибута SeriesDescription")
@@ -83,10 +115,26 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
     try:
         dataForProgrammers.append(PatientCode)
         dataForProgrammers.append(SeriesDescriptions)
-
         dataForProgrammers.append(resolutions)
+    except AttributeError:
+        return
 
+    try:
+        dataForProgrammers.append(ds.RescaleIntercept)
+    except AttributeError:
+        dataForProgrammers.append('None')
+
+    try:
+        dataForProgrammers.append(ds.RescaleSlope)
+    except AttributeError:
+        dataForProgrammers.append('None')
+
+    try:
+        dataForProgrammers.append(ImagePositionsPatient)
+        dataForProgrammers.append(SliceThickness)
+        dataForProgrammers.append(PixelSpacing)
         dataForProgrammers.append(ds.Manufacturer)
+        dataForProgrammers.append(ds.DeviceSerialNumber)
 
         age = str(ds.PatientAge)
         if age[0] != '0':
@@ -98,9 +146,8 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
             dataForProgrammers.append('0')
         elif ds.PatientSex == 'M':
             dataForProgrammers.append('1')
-
     except AttributeError:
-        return
+        dataForProgrammers.append('None')
 
     return dataForProgrammers
 
@@ -131,13 +178,17 @@ for pathToPatientDir in PatientsDirs:
     shutil.copytree(path + '\\' + pathToPatientDir, outputPath + '\\' + code)  # Копируем файлы пациента в другую папку
     SeriesDescriptions = []
     resolutions = []  # Разрешение снимков
+    ImagePositionsPatient = []
+    SliceThickness = []
+    PixelSpacing = []
     for dirs, folders, files in os.walk(outputPath + '\\' + code):  # Проход по всем каталогам и файлам
         # print(dirs)
         # print(folders)
         # print(files)
         if files:
             for file in files:
-                dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions, resolutions)
+                dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions, resolutions,
+                                                              ImagePositionsPatient, SliceThickness, PixelSpacing)
                 PersonalData = Anonymization(dirs + '\\' + file, code)
 
     # Проход по всем каталогам и файлам рекурсивно, для замены имён папок
