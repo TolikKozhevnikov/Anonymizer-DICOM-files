@@ -4,7 +4,8 @@ import shutil
 import uuid
 import csv
 
-data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate', 'StudyDate', 'StudyTime', 'InstitutionName']]
+data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate',
+         'StudyDate', 'StudyTime', 'InstitutionName']]
 dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages',
                                    'RescaleIntercept', 'RescaleSlope', 'ImagePositionPatient', 'SliceThickness',
                                    'PixelSpacing', 'Manufacturer', 'DeviceSerialNumber', 'PatientAge', 'PatientSex']]
@@ -14,12 +15,14 @@ def generateCode():
     return str(uuid.uuid4())
 
 
-def Anonymization(pathToFileForAnon, PatientCode):
+def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescriptionsForAnon):
     PatientData = []
     try:
-        ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
+        # считываем одиночный диком файл
+        ds = pydicom.dcmread(pathToFileForAnon)
         # print(ds)
-    except pydicom.errors.InvalidDicomError:  # Удаляем файл, если прочитать его не удалось.
+    # Удаляем файл, если прочитать его не удалось.
+    except pydicom.errors.InvalidDicomError:
         os.remove(pathToFileForAnon)
         print("Неизвестный файл был удален")
         return
@@ -46,8 +49,35 @@ def Anonymization(pathToFileForAnon, PatientCode):
     ds.StudyTime = ''
     ds.InstitutionName = ''
     ds.remove_private_tags()
+    if ds.SeriesDescription not in SeriesDescriptionsForAnon and ds.SeriesDescription != '':
+        os.mkdir(path + '\\' + str(ds.SeriesDescription))
+        pydicom.dcmwrite(
+            path + '\\' + str(ds.SeriesDescription) + '\\' + str(fileName), ds)
+        os.remove(pathToFileForAnon)
+        SeriesDescriptionsForAnon.append(ds.SeriesDescription)
+    elif ds.SeriesDescription not in SeriesDescriptionsForAnon and ds.SeriesDescription == '' \
+            and 'UnnamedSeries' not in SeriesDescriptionsForAnon:
 
-    pydicom.dcmwrite(pathToFileForAnon, ds)
+        os.mkdir(path + '\\' + 'UnnamedSeries')
+        pydicom.dcmwrite(path + '\\' + str('UnnamedSeries') +
+                         '\\' + str(fileName), ds)
+        os.remove(pathToFileForAnon)
+        SeriesDescriptionsForAnon.append('UnnamedSeries')
+    elif ds.SeriesDescription in SeriesDescriptionsForAnon:
+        try:
+            pydicom.dcmwrite(
+                path + '\\' + str(ds.SeriesDescription) + '\\' + str(fileName), ds)
+            os.remove(pathToFileForAnon)
+        except:
+            return
+    elif 'UnnamedSeries' in SeriesDescriptionsForAnon:
+        print('asdasdasdasd')
+        try:
+            pydicom.dcmwrite(path + '\\' + 'UnnamedSeries' +
+                             '\\' + str(fileName), ds)
+            os.remove(pathToFileForAnon)
+        except:
+            return
     return PatientData
 
 
@@ -75,12 +105,12 @@ def returnPixelSpacing(ds):
 
 def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions, ImagePositionsPatient,
                              SliceThickness, PixelSpacing):
-
     dataForProgrammers = []
     rowAndColumns = []
 
     try:
-        ds = pydicom.dcmread(pathToFileForAnon)  # считываем одиночный диком файл
+        # считываем одиночный диком файл
+        ds = pydicom.dcmread(pathToFileForAnon)
         try:
 
             Rows = ds.Rows
@@ -92,14 +122,16 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
                 if ds.SeriesDescription != '':
                     SeriesDescriptions.append(ds.SeriesDescription)
                     resolutions.append(rowAndColumns)
-                    ImagePositionsPatient.append(returnImagePositionsPatient(ds))
+                    ImagePositionsPatient.append(
+                        returnImagePositionsPatient(ds))
                     SliceThickness.append(returnSliceThickness(ds))
                     PixelSpacing.append(returnPixelSpacing(ds))
                 else:
                     if 'UnnamedSeries' not in SeriesDescriptions:
                         SeriesDescriptions.append('UnnamedSeries')
                         resolutions.append(rowAndColumns)
-                        ImagePositionsPatient.append(returnImagePositionsPatient(ds))
+                        ImagePositionsPatient.append(
+                            returnImagePositionsPatient(ds))
                         SliceThickness.append(returnSliceThickness(ds))
                         PixelSpacing.append(returnPixelSpacing(ds))
 
@@ -107,7 +139,8 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
             # print("нет атрибута SeriesDescription")
             return
 
-    except pydicom.errors.InvalidDicomError:  # Удаляем файл, если прочитать его не удалось.
+    # Удаляем файл, если прочитать его не удалось.
+    except pydicom.errors.InvalidDicomError:
         os.remove(pathToFileForAnon)
         print("Неизвестный файл был удален")
         return
@@ -153,13 +186,15 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
 
 
 path = os.getcwd() + '\\data'  # Путь до папки с файлами
-outputPath = os.getcwd() + '\\outputData'  # Путь с файлами, с удаленными перс. данными
+# Путь с файлами, с удаленными перс. данными
+outputPath = os.getcwd() + '\\outputData'
 
 try:
     os.mkdir(outputPath)
 
 except OSError:
-    shutil.rmtree(outputPath)  # Если папка существует, удалим ее и все ее содержимое,
+    # Если папка существует, удалим ее и все ее содержимое,
+    shutil.rmtree(outputPath)
     os.mkdir(outputPath)  # а затем создадим заново.
     print("Директория успешно обновлена:  %s " % outputPath)
 
@@ -175,13 +210,16 @@ for pathToPatientDir in PatientsDirs:
     PersonalData = []
     dataForProgrammers = []
     code = generateCode()  # генерация уникального кода для пациента
-    shutil.copytree(path + '\\' + pathToPatientDir, outputPath + '\\' + code)  # Копируем файлы пациента в другую папку
+    # Копируем файлы пациента в другую папку
+    shutil.copytree(path + '\\' + pathToPatientDir, outputPath + '\\' + code)
     SeriesDescriptions = []
+    SeriesDescriptionsForAnon = []
     resolutions = []  # Разрешение снимков
     ImagePositionsPatient = []
     SliceThickness = []
     PixelSpacing = []
-    for dirs, folders, files in os.walk(outputPath + '\\' + code):  # Проход по всем каталогам и файлам
+    # Проход по всем каталогам и файлам
+    for dirs, folders, files in os.walk(outputPath + '\\' + code):
         # print(dirs)
         # print(folders)
         # print(files)
@@ -189,13 +227,16 @@ for pathToPatientDir in PatientsDirs:
             for file in files:
                 dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions, resolutions,
                                                               ImagePositionsPatient, SliceThickness, PixelSpacing)
-                PersonalData = Anonymization(dirs + '\\' + file, code)
+                PersonalData = Anonymization(
+                    dirs + '\\' + file, dirs, file, code, SeriesDescriptionsForAnon)
 
     # Проход по всем каталогам и файлам рекурсивно, для замены имён папок
     for dirs, folders, files in os.walk(outputPath + '\\' + code, topdown=False):
         if folders:
             for folder in folders:
-                os.rename(dirs + '\\' + folder, dirs + '\\' + 'folder_' + generateCode())
+                if folder not in SeriesDescriptions:
+                    os.rename(dirs + '\\' + folder, dirs +
+                              '\\' + 'folder_' + generateCode())
     if PersonalData is not None:
         data.append(PersonalData)
     if dataForProgrammers is not None:
@@ -203,12 +244,14 @@ for pathToPatientDir in PatientsDirs:
     counter += 1
     print('Обработано ' + str(counter) + ' из ' + str(len(PatientsDirs)))
 
-with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:  # Записываем данные пользователей в csv-файл
+# Записываем данные пользователей в csv-файл
+with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:
 
     writer = csv.writer(csvfile)
     writer.writerows(data)
 
-with open('dataForProgrammers.csv', 'w', newline='') as csvfile2:  # Данные пользователей для разработчиков
+# Данные пользователей для разработчиков
+with open('dataForProgrammers.csv', 'w', newline='') as csvfile2:
     writer = csv.writer(csvfile2)
     writer.writerows(dataWithNotPersonalPatientInfo)
 
