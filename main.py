@@ -8,7 +8,8 @@ data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate',
          'StudyDate', 'StudyTime', 'InstitutionName']]
 dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages',
                                    'RescaleIntercept', 'RescaleSlope', 'ImagePositionPatient', 'SliceThickness',
-                                   'PixelSpacing', 'Manufacturer', 'DeviceSerialNumber', 'PatientAge', 'PatientSex']]
+                                   'PixelSpacing', 'TypeOfSlices', 'countOfSlices', 'Manufacturer', 'DeviceSerialNumber',
+                                   'PatientAge', 'PatientSex']]
 
 
 def generateCode():
@@ -71,7 +72,6 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
         except:
             return
     elif 'UnnamedSeries' in SeriesDescriptionsForAnon:
-        print('asdasdasdasd')
         try:
             pydicom.dcmwrite(path + '\\' + 'UnnamedSeries' +
                              '\\' + str(fileName), ds)
@@ -104,10 +104,10 @@ def returnPixelSpacing(ds):
 
 
 def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions, ImagePositionsPatient,
-                             SliceThickness, PixelSpacing):
+                             SliceThickness, PixelSpacing, counterSlices):
     dataForProgrammers = []
     rowAndColumns = []
-
+    typeOfSlice = []
     try:
         # считываем одиночный диком файл
         ds = pydicom.dcmread(pathToFileForAnon)
@@ -119,6 +119,10 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
             rowAndColumns.append(Columns)
 
             if ds.SeriesDescription not in SeriesDescriptions:
+                if 'UnnamedSeries' not in SeriesDescriptions or ds.SeriesDescription != '':
+                    counterSlices.append(1)
+                elif 'UnnamedSeries' in SeriesDescriptions and ds.SeriesDescription == '':
+                    counterSlices[-1] += 1
                 if ds.SeriesDescription != '':
                     SeriesDescriptions.append(ds.SeriesDescription)
                     resolutions.append(rowAndColumns)
@@ -135,6 +139,8 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
                         SliceThickness.append(returnSliceThickness(ds))
                         PixelSpacing.append(returnPixelSpacing(ds))
 
+            else:
+                counterSlices[-1] += 1
         except AttributeError:
             # print("нет атрибута SeriesDescription")
             return
@@ -166,6 +172,17 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
         dataForProgrammers.append(ImagePositionsPatient)
         dataForProgrammers.append(SliceThickness)
         dataForProgrammers.append(PixelSpacing)
+
+        for countSlices in counterSlices:
+
+            if countSlices < 3:
+                typeOfSlice.append('Another')
+            else:
+                typeOfSlice.append('SeriesOfSlices')
+
+        dataForProgrammers.append(typeOfSlice)
+        dataForProgrammers.append(counterSlices)
+
         dataForProgrammers.append(ds.Manufacturer)
         dataForProgrammers.append(ds.DeviceSerialNumber)
 
@@ -218,6 +235,7 @@ for pathToPatientDir in PatientsDirs:
     ImagePositionsPatient = []
     SliceThickness = []
     PixelSpacing = []
+    counterSlices = []
     # Проход по всем каталогам и файлам
     for dirs, folders, files in os.walk(outputPath + '\\' + code):
         # print(dirs)
@@ -226,7 +244,8 @@ for pathToPatientDir in PatientsDirs:
         if files:
             for file in files:
                 dataForProgrammers = returnDataForProgrammers(dirs + '\\' + file, code, SeriesDescriptions, resolutions,
-                                                              ImagePositionsPatient, SliceThickness, PixelSpacing)
+                                                              ImagePositionsPatient, SliceThickness, PixelSpacing,
+                                                              counterSlices)
                 PersonalData = Anonymization(
                     dirs + '\\' + file, dirs, file, code, SeriesDescriptionsForAnon)
 
