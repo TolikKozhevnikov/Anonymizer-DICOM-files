@@ -40,6 +40,7 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
         PatientData.append(ds.InstitutionName)
 
     except AttributeError:
+        print('AttributeError')
         return
 
     # Модифицируем персональные данные, добавляя уникальный код.
@@ -70,6 +71,10 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
                 path + '\\' + str(ds.SeriesDescription) + '\\' + str(fileName), ds)
             os.remove(pathToFileForAnon)
         except:
+            os.mkdir(path + '\\' + str(ds.SeriesDescription))
+            pydicom.dcmwrite(
+                path + '\\' + str(ds.SeriesDescription) + '\\' + str(fileName), ds)
+            os.remove(pathToFileForAnon)
             return
     elif 'UnnamedSeries' in SeriesDescriptionsForAnon:
         try:
@@ -78,6 +83,7 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
             os.remove(pathToFileForAnon)
         except:
             return
+            print('2')
     return PatientData
 
 
