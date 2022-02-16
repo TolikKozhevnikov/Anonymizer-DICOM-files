@@ -8,18 +8,21 @@ data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate',
          'StudyDate', 'StudyTime', 'InstitutionName']]
 dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages',
                                    'RescaleIntercept', 'RescaleSlope', 'ImagePositionPatient', 'SliceThickness',
-                                   'PixelSpacing', 'TypeOfSlices', 'countOfSlices', 'Manufacturer', 'DeviceSerialNumber',
+                                   'PixelSpacing', 'TypeOfSlices', 'countOfSlices', 'Manufacturer',
+                                   'DeviceSerialNumber',
                                    'PatientAge', 'PatientSex']]
 
 
+# Функция, которая возвращает уникальный ключ
 def generateCode():
     return str(uuid.uuid4())
 
 
+# Функция, которая удаляет персональные данные из DICOM-файла, возвращает данные о пациенте, для формирования csv-файла.
 def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescriptionsForAnon):
     PatientData = []
     try:
-        # считываем одиночный диком файл
+        # считываем одиночный DICOM-файл
         ds = pydicom.dcmread(pathToFileForAnon)
         # print(ds)
     # Удаляем файл, если прочитать его не удалось.
@@ -40,17 +43,23 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
         PatientData.append(ds.InstitutionName)
 
     except AttributeError:
-        print('AttributeError')
+        # print('AttributeError')
         return
 
     # Модифицируем персональные данные, добавляя уникальный код.
     ds.PatientName = str(PatientCode)
-    ds.PatientBirthDate = ''
     ds.PatientID = str(PatientCode)
+
+    # Удаляем осталные персональные данные из датасета
+    ds.PatientBirthDate = ''
     ds.StudyDate = ''
     ds.StudyTime = ''
     ds.InstitutionName = ''
     ds.remove_private_tags()
+
+    # Создаем новые каталоги, для разделения файлов по полю Description,
+    # формируем новый путь для DICOM-файла, в который записываем модифицированные данные из датасета,
+    # Затем удаляем файл с персональными данными.
     if ds.SeriesDescription not in SeriesDescriptionsForAnon and ds.SeriesDescription != '':
         os.mkdir(path + '\\' + str(ds.SeriesDescription))
         pydicom.dcmwrite(
@@ -70,6 +79,7 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
             pydicom.dcmwrite(
                 path + '\\' + str(ds.SeriesDescription) + '\\' + str(fileName), ds)
             os.remove(pathToFileForAnon)
+
         except:
             os.mkdir(path + '\\' + str(ds.SeriesDescription))
             pydicom.dcmwrite(
@@ -81,12 +91,13 @@ def Anonymization(pathToFileForAnon, path, fileName, PatientCode, SeriesDescript
             pydicom.dcmwrite(path + '\\' + 'UnnamedSeries' +
                              '\\' + str(fileName), ds)
             os.remove(pathToFileForAnon)
+
         except:
             return
-            print('2')
     return PatientData
 
 
+#   Функция возвращающая значение поля ImagePositionsPatient, если данного поля нет, возвращент None
 def returnImagePositionsPatient(ds):
     try:
         return str(ds.ImagePositionPatient)
@@ -95,6 +106,7 @@ def returnImagePositionsPatient(ds):
         return 'None'
 
 
+#   Функция возвращающая значение поля SliceThickness, если данного поля нет, возвращент None
 def returnSliceThickness(ds):
     try:
         return str(ds.SliceThickness)
@@ -102,6 +114,7 @@ def returnSliceThickness(ds):
         return 'None'
 
 
+#   Функция возвращающая значение поля PixelSpacing, если данного поля нет, возвращент None
 def returnPixelSpacing(ds):
     try:
         return str(ds.PixelSpacing)
@@ -109,6 +122,7 @@ def returnPixelSpacing(ds):
         return 'None'
 
 
+#   Функция формирует список данных, необходимых для разработчиков.
 def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions, resolutions, ImagePositionsPatient,
                              SliceThickness, PixelSpacing, counterSlices):
     dataForProgrammers = []
@@ -226,8 +240,11 @@ else:
 
 PatientsDirs = os.listdir(path)
 print('Всего пациентов: ' + str(len(PatientsDirs)))
+
+#   Счетчик, для вывода процееса обработки данных о пациентах
 counter = 0
 
+#   В цикле перебераем каждого пациента из папки data
 for pathToPatientDir in PatientsDirs:
 
     PersonalData = []
@@ -235,13 +252,16 @@ for pathToPatientDir in PatientsDirs:
     code = generateCode()  # генерация уникального кода для пациента
     # Копируем файлы пациента в другую папку
     shutil.copytree(path + '\\' + pathToPatientDir, outputPath + '\\' + code)
+
     SeriesDescriptions = []
     SeriesDescriptionsForAnon = []
     resolutions = []  # Разрешение снимков
+
     ImagePositionsPatient = []
     SliceThickness = []
     PixelSpacing = []
     counterSlices = []
+
     # Проход по всем каталогам и файлам
     for dirs, folders, files in os.walk(outputPath + '\\' + code):
         # print(dirs)
@@ -255,20 +275,25 @@ for pathToPatientDir in PatientsDirs:
                 PersonalData = Anonymization(
                     dirs + '\\' + file, dirs, file, code, SeriesDescriptionsForAnon)
 
-    # Проход по всем каталогам и файлам рекурсивно, для замены имён папок
+    # Проход по всем каталогам и файлам рекурсивно, для замены имён папок на уникальные имена.
     for dirs, folders, files in os.walk(outputPath + '\\' + code, topdown=False):
         if folders:
             for folder in folders:
                 if folder not in SeriesDescriptions:
                     os.rename(dirs + '\\' + folder, dirs +
                               '\\' + 'folder_' + generateCode())
+
+    #   Добавляем в список данные о пациенте, если они присутвуют.
     if PersonalData is not None:
         data.append(PersonalData)
+
+    #   Добавляем в список данные о пациенте, которые необходимы для разработки, если они присутвуют.
     if dataForProgrammers is not None:
         dataWithNotPersonalPatientInfo.append(dataForProgrammers)
     counter += 1
     print('Обработано ' + str(counter) + ' из ' + str(len(PatientsDirs)))
 
+#   Запись данных в csv-файлы
 # Записываем данные пользователей в csv-файл
 with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:
 
