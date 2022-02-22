@@ -4,6 +4,8 @@ import shutil
 import uuid
 import csv
 
+log = []
+
 data = [['PatientName', 'uID', 'PatientID', 'PatientBirthDate',
          'StudyDate', 'StudyTime', 'InstitutionName']]
 dataWithNotPersonalPatientInfo = [['uID', 'countSeriesDescriptions', 'resolutionOfImages',
@@ -168,7 +170,8 @@ def returnDataForProgrammers(pathToFileForAnon, PatientCode, SeriesDescriptions,
     # Удаляем файл, если прочитать его не удалось.
     except pydicom.errors.InvalidDicomError:
         os.remove(pathToFileForAnon)
-        print("Неизвестный файл был удален")
+        print("Неизвестный файл был удален " + str(pathToFileForAnon))
+        log.append(str(pathToFileForAnon))
         return
 
     try:
@@ -304,5 +307,8 @@ with open('dataForDeanonimizatiom.csv', 'w', newline='') as csvfile:
 with open('dataForProgrammers.csv', 'w', newline='') as csvfile2:
     writer = csv.writer(csvfile2)
     writer.writerows(dataWithNotPersonalPatientInfo)
+
+with open('log.txt', 'w') as f:
+    f.write(str(log))
 
 print('Готово')
